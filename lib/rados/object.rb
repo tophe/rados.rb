@@ -59,16 +59,33 @@ module Rados
     # At end of file, it returns nil or "" depend on
     # length. ios.read() and ios.read(nil) returns
     # "". ios.read(positive-integer) returns nil.
-    def read(length = nil)
+    def read()
       attr_size = get_attribut(@@size_xattr)
-      length = attr_size unless attr_size.nil?
-      return '' if length == 0
-      data = @ioctx.read(@oid, length, @offset)
-      @offset += data.size
+      unless attr_size.nil?
+        length = attr_size unless attr_size.nil?
+        data = @ioctx.read(@oid, length, @offset)
+        @offset += data.size
+      else
+        data = ""
+        #read til the IO end
+        while(true)
+          buff_size = 16 * 1024
+          get_d = @ioctx.read(@oid, buff_size, @offset)
+          unless  get_d.empty?
+            data += get_d
+            @offset += get_d.size
+          else
+            break
+          end
+          
+        end
+        
+      end
       Marshal.load(data)
       
     end
 
+    
     # Writes the given string to the object. The stream must be opened
     # for writing. If the argument is not a string, it will be
     # converted to a string using to_s. Returns the number of bytes
