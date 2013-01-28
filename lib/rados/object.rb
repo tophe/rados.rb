@@ -4,12 +4,38 @@ module Rados
 
     attr_accessor :ioctx, :oid
 
+    @@size_xattr = "Content-Length"
+    
+    
     def initialize(oid, ioctx)
       @ioctx = ioctx
       @oid = oid
       @offset = 0
     end
 
+    
+    # set x_attribut
+    def set_attribut(key,value)
+      #rados_setxattr
+    end
+    
+    # get x_attribut
+    def get_attribut(key)
+      #rados_getxattr
+    end
+    
+    # get or itter through x_attributs
+    def attributs()
+      if block_given?
+        rados_getxattrs.each { |key,value| 
+          yield key,value
+        }
+      else
+        return rados_getxattrs
+      end
+      
+    end
+    
     # Reads length bytes from the I/O stream.
     # length must be a non-negative integer or nil.
     # If length is a positive integer, it try to read length bytes
@@ -34,10 +60,13 @@ module Rados
     # length. ios.read() and ios.read(nil) returns
     # "". ios.read(positive-integer) returns nil.
     def read(length = nil)
+      attr_size = get_attribut(@@size_xattr)
+      length = attr_size unless attr_size.nil?
       return '' if length == 0
       data = @ioctx.read(@oid, length, @offset)
       @offset += data.size
-      data
+      Marshal.load(data)
+      
     end
 
     # Writes the given string to the object. The stream must be opened
@@ -45,14 +74,11 @@ module Rados
     # converted to a string using to_s. Returns the number of bytes
     # written.
     def write(s)
-      if !s.is_a? String
-        if !s.respond_to? :to_s
-          raise TypeError, "#{s.inspect} could not be converted to a string"
-        else
-          s = s.to_s
-        end
-      end
-      bytes = @ioctx.write(@oid, s, s.size, @offset)
+      binary_to_store = Marshal.dump(s)
+      bytes = @ioctx.write(@oid, binary_to_store, binary_to_store.size, @offset)
+      # add an xattr :
+      set_attribut(@@size_xattr, binary_to_store.size)
+      
       @offset += bytes
       bytes
     end
